@@ -1,0 +1,444 @@
+---
+interface Props {
+	src: string;
+	title?: string;
+	class?: string;
+}
+
+const { src, title, class: className } = Astro.props;
+---
+
+<audio-player src={src} title={title} class={className}>
+	<audio></audio>
+	<div class="left-container">
+		<button id="play-btn" aria-label="Play song">
+			<svg
+				id="play-icon"
+				xmlns="http://www.w3.org/2000/svg"
+				viewBox="0 0 20 20"
+				width="35"
+				height="35"
+				fill="currentColor"
+				aria-hidden="true"
+			>
+				<path
+					d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"
+				></path>
+			</svg>
+			<svg
+				id="pause-icon"
+				xmlns="http://www.w3.org/2000/svg"
+				viewBox="0 0 25 25"
+				width="30"
+				height="30"
+				fill="currentColor"
+				aria-hidden="true"
+				style="display: none;"
+			>
+				<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"></path>
+			</svg>
+		</button>
+	</div>
+	<div class="right-container">
+		<p id="song-title">Song title</p>
+		<div class="audio-bar">
+			<span id="current-time">00:00</span>
+			<progress value="0" max="1"></progress>
+			<span id="total-time">00:00</span>
+		</div>
+	</div>
+</audio-player>
+
+<script>
+	/**
+	 * Custom element based on `audio-tool` by Kevin Logan
+	 * https://github.com/kevinlogan94/audio-tool/blob/master/src/audio-tool.js
+	 */
+	class AudioPlayer extends HTMLElement {
+		private audio: HTMLAudioElement | null;
+		private progressBar: HTMLProgressElement | null;
+		private currentTime: HTMLSpanElement | null;
+		private duration: HTMLSpanElement | null;
+		private playIcon: SVGElement | null;
+		private pauseIcon: SVGElement | null;
+		private playPauseButton: HTMLButtonElement | null;
+		private songTitle: HTMLHeadingElement | null;
+		private playing: boolean | null;
+
+		static get observedAttributes() {
+			return ['src', 'title', 'preload', 'auto-play'];
+		}
+
+		constructor() {
+			super();
+			this.audio = null;
+			this.progressBar = null;
+			this.currentTime = null;
+			this.duration = null;
+			this.playIcon = null;
+			this.pauseIcon = null;
+			this.playPauseButton = null;
+			this.songTitle = null;
+			this.playing = false;
+		}
+
+		connectedCallback() {
+			this.audio = this.querySelector('audio');
+			this.playIcon = this.querySelector('#play-icon');
+			this.pauseIcon = this.querySelector('#pause-icon');
+			this.playPauseButton = this.querySelector('#play-btn');
+			this.progressBar = this.querySelector('progress');
+			this.currentTime = this.querySelector('#current-time');
+			this.duration = this.querySelector('#total-time');
+			this.songTitle = this.querySelector('#song-title');
+
+			this.configureAudio();
+			this.checkFileTypeSupport();
+			this.setSongTitle();
+			this.setPlayPauseListener();
+			this.setProgressListener();
+			this.setTimeListener();
+		}
+
+		attributeChangedCallback(name: string, oldValue: string, newValue: string) {
+			switch (name) {
+				case 'src':
+					if (this.audio) {
+						this.audio.removeEventListener('timeupdate', this.updateTimeHandler);
+						this.audio.removeEventListener('loadedmetadata', this.metadataTimeHandler);
+					}
+					this.configureAudio();
+					this.checkFileTypeSupport();
+					if (this.audio && this.playIcon && this.pauseIcon && this.playPauseButton) {
+						this.pauseIcon.style.display = 'none';
+						this.playIcon.style.display = 'block';
+						this.playPauseButton.setAttribute('aria-label', 'Play song');
+						this.audio.pause();
+						this.playing = false;
+						this.dispatchEvent(new Event('audiopaused'));
+					}
+					if (this.progressBar) {
+						this.progressBar.value = 0;
+					}
+					this.setTimeListener();
+					break;
+				case 'title':
+					this.setSongTitle();
+					break;
+				default:
+					console.log('default branch');
+					break;
+			}
+		}
+
+		configureAudio() {
+			if (this.audio && this.hasAttribute('src')) {
+				this.audio.src = this.getAttribute('src') || '';
+			}
+			if (this.audio && this.hasAttribute('preload')) {
+				const preload = this.getAttribute('preload');
+				if (preload === '' || preload === 'none' || preload === 'metadata' || preload === 'auto') {
+					this.audio.preload = preload;
+				}
+			}
+			if (this.audio && this.hasAttribute('auto-play')) {
+				if (this.getAttribute('auto-play') === 'true') {
+					this.audio.autoplay = true;
+					this.audio.load();
+				}
+			}
+		}
+
+		checkFileTypeSupport() {
+			if (this.audio && this.audio.src) {
+				let songFile = this.audio.src;
+				let fileType = songFile.substring(songFile.lastIndexOf('.') + 1);
+
+				// https://diveintohtml5.info/everything.html#audio-vorbis
+				switch (fileType) {
+					case 'mp3':
+						if (
+							!(this.audio.canPlayType && this.audio.canPlayType('audio/mpeg;').replace(/no/, ''))
+						) {
+							this.setUnsupportedMessage("This browser doesn't support MP3 audio files.");
+						}
+						break;
+					case 'm4a':
+						if (
+							!(
+								this.audio.canPlayType &&
+								this.audio.canPlayType('audio/mp4; codecs="mp4a.40.2"').replace(/no/, '')
+							)
+						) {
+							this.setUnsupportedMessage("This browser doesn't support M4A audio files.");
+						}
+						break;
+					case 'aac':
+						if (
+							!(
+								this.audio.canPlayType &&
+								this.audio.canPlayType('audio/mp4; codecs="mp4a.40.2"').replace(/no/, '')
+							)
+						) {
+							this.setUnsupportedMessage("This browser doesn't support AAC audio files.");
+						}
+						break;
+					case 'wav':
+						if (
+							!(
+								this.audio.canPlayType &&
+								this.audio.canPlayType('audio/wav; codecs="1"').replace(/no/, '')
+							)
+						) {
+							this.setUnsupportedMessage("This browser doesn't support WAV audio files.");
+						}
+						break;
+					case 'ogg':
+						if (
+							!(
+								this.audio.canPlayType &&
+								this.audio.canPlayType('audio/ogg; codecs="vorbis"').replace(/no/, '')
+							)
+						) {
+							this.setUnsupportedMessage("This browser doesn't support Vorbis audio files.");
+						}
+						break;
+					default:
+						if (!this.audio.canPlayType('audio/' + fileType)) {
+							this.setUnsupportedMessage("This browser doesn't support this audio file");
+						}
+						break;
+				}
+			}
+		}
+
+		setSongTitle() {
+			if (this.songTitle && this.hasAttribute('title')) {
+				this.songTitle.textContent = this.getAttribute('title');
+			} else if (this.songTitle && this.hasAttribute('src')) {
+				this.songTitle.textContent = this.getAttribute('src');
+			}
+		}
+
+		setPlayPauseListener() {
+			this.playPauseButton?.addEventListener('click', () => {
+				if (this.pauseIcon && this.playIcon && this.playPauseButton && this.audio) {
+					if (!this.playing) {
+						this.pauseIcon.style.display = 'block';
+						this.playIcon.style.display = 'none';
+						this.playPauseButton.setAttribute('aria-label', 'Pause song');
+						this.audio.play();
+						this.playing = true;
+						this.dispatchEvent(new Event('audioplaying'));
+					} else {
+						this.pauseIcon.style.display = 'none';
+						this.playIcon.style.display = 'block';
+						this.playPauseButton.setAttribute('aria-label', 'Play song');
+						this.audio.pause();
+						this.playing = false;
+						this.dispatchEvent(new Event('audiopaused'));
+					}
+				}
+			});
+		}
+
+		setProgressListener() {
+			this.progressBar?.addEventListener('click', (event) => {
+				if (this.progressBar && this.audio) {
+					let percent = event.offsetX / this.progressBar.offsetWidth;
+					this.audio.currentTime = percent * this.audio.duration;
+					this.progressBar.value = percent;
+				}
+			});
+		}
+
+		public playSong() {
+			if (this.audio && this.playIcon && this.pauseIcon && this.playPauseButton) {
+				this.pauseIcon.style.display = 'block';
+				this.playIcon.style.display = 'none';
+				this.playPauseButton.setAttribute('aria-label', 'Pause song');
+				this.audio.play();
+				this.playing = true;
+				this.dispatchEvent(new Event('audioplaying'));
+			}
+		}
+
+		private setTimeListener() {
+			this.audio?.addEventListener('loadedmetadata', () => {
+				this.metadataTimeHandler();
+			});
+		}
+
+		private metadataTimeHandler() {
+			if (this.audio && this.currentTime && this.duration) {
+				this.currentTime.textContent = `${this.formatTime(this.audio.currentTime)}`;
+				this.duration.textContent = `${this.formatTime(this.audio.duration)}`;
+				this.audio.addEventListener('timeupdate', () => {
+					this.updateTimeHandler();
+				});
+			}
+		}
+
+		private updateTimeHandler() {
+			if (
+				this.audio &&
+				this.currentTime &&
+				this.duration &&
+				this.progressBar &&
+				this.playIcon &&
+				this.pauseIcon &&
+				this.playPauseButton
+			) {
+				if (!isNaN(this.audio.currentTime / this.audio.duration)) {
+					this.progressBar.value = this.audio.currentTime / this.audio.duration;
+					this.currentTime.textContent = `${this.formatTime(this.audio.currentTime)}`;
+					this.duration.textContent = `${this.formatTime(this.audio.duration)}`;
+
+					if (this.audio.currentTime === this.audio.duration) {
+						this.audio.currentTime = 0;
+						this.pauseIcon.style.display = 'none';
+						this.playIcon.style.display = 'block';
+						this.playPauseButton.setAttribute('aria-label', 'Play song');
+						this.playing = false;
+						this.dispatchEvent(new Event('audiopaused'));
+						this.dispatchEvent(new Event('audiofinished'));
+					}
+				}
+			}
+		}
+
+		private setUnsupportedMessage(message: string) {
+			if (this.songTitle) {
+				this.songTitle.textContent = message;
+			}
+		}
+
+		private formatTime(seconds: number): string {
+			const hours = Math.floor(seconds / 3600);
+			const minutes = Math.floor((seconds % 3600) / 60);
+			const remainingSeconds = Math.floor(seconds % 60);
+			let formattedTime = '';
+			if (hours > 0) {
+				const formattedHours = hours.toString().padStart(2, '0');
+				formattedTime = `${formattedHours}:${minutes.toString().padStart(2, '0')}:${remainingSeconds
+					.toString()
+					.padStart(2, '0')}`;
+			} else {
+				formattedTime = `${minutes.toString().padStart(2, '0')}:${remainingSeconds
+					.toString()
+					.padStart(2, '0')}`;
+			}
+			return formattedTime;
+		}
+	}
+
+	customElements.define('audio-player', AudioPlayer);
+</script>
+
+<style>
+	audio-player {
+		border: solid 1px #cbc9c9;
+		border-radius: var(--corner-radius);
+		display: grid;
+		justify-items: center;
+		align-items: center;
+		grid-template-columns: 15% 85%;
+		padding: 0.5rem;
+	}
+
+	audio-player button {
+		color: white;
+		background-color: black;
+		border: none;
+		border-radius: 50%;
+		cursor: pointer;
+		width: 40px;
+		height: 40px;
+		padding: 0;
+		line-height: 0;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	audio-player button:focus-visible {
+		outline: solid 2px var(--focus-outline);
+		outline-offset: 2px;
+	}
+
+	audio-player button svg {
+		width: 20px;
+		height: 20px;
+		margin: 0;
+		padding: 0;
+	}
+
+	#play-icon {
+		margin-left: 2px;
+	}
+
+	audio-player .audio-bar {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 10px;
+	}
+
+	audio-player progress {
+		grid-column: 3 / span 10;
+		cursor: pointer;
+		display: block;
+		width: 100%;
+		height: 6px;
+		border: none;
+		border-radius: 100px;
+		background-color: rgb(190, 190, 190);
+	}
+
+	audio-player progress::-webkit-progress-bar {
+		background-color: rgb(190, 190, 190);
+		border-radius: 100px;
+		height: 6px;
+	}
+
+	audio-player progress::-webkit-progress-value {
+		background-color: rgb(30, 30, 30);
+		border-radius: 100px;
+		height: 6px;
+	}
+
+	audio-player progress::-moz-progress-bar {
+		background-color: rgb(30, 30, 30);
+		border-radius: 100px;
+		height: 6px;
+	}
+
+	audio-player label {
+		display: block;
+		font-size: 1rem;
+	}
+
+	#song-title {
+		font-size: 1rem;
+		font-weight: 600;
+		margin: 0;
+	}
+
+	audio-player .left-container {
+		order: 1;
+		height: auto;
+		width: auto;
+	}
+
+	audio-player .right-container {
+		order: 2;
+		height: auto;
+		width: 95%;
+	}
+
+	@media screen and (min-width: 48em) {
+		#song-title {
+			font-size: 1rem;
+		}
+	}
+</style>

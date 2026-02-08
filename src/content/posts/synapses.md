@@ -1,6 +1,6 @@
 ---
 title: 'fic commentary: like synapses'
-pubDate: '2026-01-15'
+pubDate: '2026-02-08'
 ---
 
 the first meaty (<3k words) fic I've written for a non-_MXTX_ fandom in a long, long time!

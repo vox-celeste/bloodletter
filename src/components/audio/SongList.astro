@@ -1,0 +1,192 @@
+---
+interface Props {
+	songs: any[];
+}
+
+const { songs } = Astro.props;
+---
+
+<section class="song-list">
+	<div class="header">
+		<p class="count-col">#</p>
+		<p class="title-col">Title</p>
+		<p class="time-col">Time</p>
+	</div>
+	{
+		songs.map((song) => (
+			<button id={`song-${song.count}`} class="song">
+				<span class="count-col">{song.count}</span>
+				<span class="title-col">{song.title}</span>
+				<span class="time-col">{song.time}</span>
+			</button>
+		))
+	}
+</section>
+
+<script>
+	window.addEventListener('load', main);
+
+	const songMapping: any = {
+		'song-1': '01-kerosene-heater.mp3',
+		'song-2': '02-extra-ordinary.mp3',
+		'song-3': '03-delightful-things.mp3',
+		'song-4': '04-now-im-crying-over-you.mp3',
+		'song-5': '05-new-mexico.mp3',
+		'song-6': '06-fisher-of-men.mp3',
+		'song-7': '07-ridden-hard-put-away-wet.mp3',
+		'song-8': '08-gussy.mp3',
+		'song-9': '09-i-need-space.mp3',
+		'song-10': '10-i-found-jesus.mp3',
+		'song-11': '11-sweet-epiphany.mp3',
+		'song-12': '12-hyacinthia.mp3',
+		'song-13': '13-christmas-day-blues.mp3',
+		'song-14': '14-its-all-gone-now.mp3',
+		'song-15': '15-you-keep-me-hanging-around.mp3',
+		'song-16': '16-made-up-my-mind.mp3',
+		'song-17': '17-get-yer-affairs-in-order.mp3',
+		'song-18': '18-please-forget-i-said-that.mp3',
+		'song-19': '19-hillbilly-on-ganges.mp3',
+		'song-20': '20-grateful-for-the-stars.mp3',
+		'song-21': '21-imponderable.mp3',
+		'song-22': '22-deliberative-bodies.mp3',
+		'song-23': '23-claritys-fire.mp3',
+	};
+
+	// Defaults to 'song-1' because that is the song that is set to play on page load
+	let mostRecentSongId: string = 'song-1';
+
+	function main() {
+		const audioPlayer = document.querySelector('audio-player') as any;
+		const songs = document.querySelectorAll('.song');
+		if (audioPlayer && songs) {
+			for (const song of songs) {
+				song.addEventListener('click', function (this: any) {
+					const oldSong = document.getElementById(mostRecentSongId);
+					if (oldSong) {
+						oldSong.style.color = 'black';
+						oldSong.style.background = 'transparent';
+					}
+					const songId = this.id;
+					mostRecentSongId = songId;
+					const songSrc = `songs/${songMapping[songId]}`;
+					const songTitle = this.querySelector('.title-col').textContent;
+					audioPlayer.setAttribute('src', songSrc);
+					audioPlayer.setAttribute('title', songTitle);
+					audioPlayer.playSong();
+				});
+			}
+		}
+
+		audioPlayer.addEventListener('audioplaying', function (this: any) {
+			const songId = mostRecentSongId;
+			const song = document.getElementById(songId);
+			if (song) {
+				song.style.color = 'rgb(40 35 204)';
+				song.style.background = 'rgb(60 134 201 / 14%)';
+			}
+		});
+
+		audioPlayer.addEventListener('audiopaused', function (this: any) {
+			const songId = mostRecentSongId;
+			const song = document.getElementById(songId);
+			if (song) {
+				song.style.color = 'black';
+				song.style.background = 'transparent';
+			}
+		});
+
+		audioPlayer.addEventListener('audiofinished', function (this: any) {
+			const songId = mostRecentSongId;
+			const nextSongId = `song-${parseInt(songId.split('-')[1]) + 1}`;
+			const nextSong = document.getElementById(nextSongId);
+			if (nextSong) {
+				nextSong.click();
+				mostRecentSongId = nextSongId;
+			}
+		});
+
+		window.addEventListener('keydown', function (event) {
+			if (event.code === 'Space') {
+				const target = event.target as HTMLElement;
+				if (target.classList.contains('song')) {
+					return;
+				}
+				event.preventDefault();
+				const playButton = document.querySelector('audio-player #play-btn') as HTMLButtonElement;
+				if (playButton) {
+					playButton.click();
+				}
+			}
+		});
+	}
+</script>
+
+<style>
+	.song-list {
+		display: flex;
+		flex-direction: column;
+		border: solid 1px #cbc9c9;
+		border-radius: 8px;
+		margin-top: 1rem;
+		padding: 10px;
+	}
+
+	.header,
+	.song {
+		display: grid;
+		grid-template-columns: repeat(12, 1fr);
+		align-items: center;
+		justify-items: flex-start;
+		gap: 10px;
+	}
+
+	.header {
+		border-bottom: solid 1px #cbc9c9;
+		padding-bottom: 10px;
+		margin-bottom: 10px;
+	}
+
+	.header p {
+		font-weight: 600;
+		margin: 0;
+	}
+
+	.count-col,
+	.title-col,
+	.time-col {
+		text-align: start;
+	}
+
+	.header .count-col,
+	.song .count-col {
+		grid-column: 1 / span 1;
+	}
+
+	.header .title-col,
+	.song .title-col {
+		grid-column: 2 / span 9;
+	}
+
+	.song {
+		border: none;
+		padding: 8px 0;
+		color: black;
+		background: transparent;
+		border-radius: var(--corner-radius);
+		font-weight: 500;
+	}
+
+	.song:hover {
+		background-color: #e8e1d8;
+		cursor: pointer;
+	}
+
+	.song:focus-visible {
+		outline: solid 2px var(--focus-outline);
+		outline-offset: 0;
+	}
+
+	.count-col {
+		padding-left: 12px;
+	}
+</style>
