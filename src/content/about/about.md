@@ -15,4 +15,4 @@ I watch a lot of anime and film and read a lot of books (+ some manga.) Much of 
 
 My current fandom activity is limited to _Tian Guan Ci Fu_ and the Universal Century (original) _Mobile Suit Gundam_ series. Notable past fandoms include _The Untamed_ & _Mo Dao Zu Shi_, _Golden Kamuy_, and _Chihayafuru_.
 
-This site is a work-in-progress built in [Astro](https://astro.build).
+This site is a work-in-progress. Built in [Astro](https://astro.build).
